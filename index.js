@@ -5,7 +5,8 @@ const {
   Events, 
   ActionRowBuilder, 
   ButtonBuilder, 
-  ButtonStyle 
+  ButtonStyle,
+  EmbedBuilder 
 } = require('discord.js');
 
 const client = new Client({
@@ -37,13 +38,12 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     await executeBan(newMember.guild, newMember.user, 'Not following socials');
   } 
   else if (!oldMember.roles.cache.has(UNDERAGE_ROLE_ID) && newMember.roles.cache.has(UNDERAGE_ROLE_ID)) {
-    await executeBan(newMember.guild, newMember.user, '16 and under');
+    await executeBan(newMember.guild, newMember.user, 'Underage (16 and under)');
   }
 });
 
 // Listener 2: Honeypot Channel Auto-Ban
 client.on(Events.MessageCreate, async (message) => {
-  // Ignore messages outside the honeypot channel, outside your server, or sent by bots
   if (message.guild?.id !== GUILD_ID || message.channel.id !== TRAP_CHANNEL_ID || message.author.bot) return;
 
   try {
@@ -63,8 +63,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const targetUserId = interaction.customId.split('unban_')[1];
 
     try {
+      // Execute unban in Discord
       await interaction.guild.members.unban(targetUserId, `Manual unban triggered by ${interaction.user.tag}`);
 
+      // Disable the button
       const disabledButton = new ButtonBuilder()
         .setCustomId(`unbanned_${targetUserId}`)
         .setLabel('UNBANNED')
@@ -73,8 +75,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const updatedRow = new ActionRowBuilder().addComponents(disabledButton);
 
+      // Update the original embed to reflect who unbanned the user
+      const existingEmbed = interaction.message.embeds[0];
+      const updatedEmbed = EmbedBuilder.from(existingEmbed)
+        .setColor('#57F287') // Change color accent to Green
+        .addFields({ 
+          name: 'Status', 
+          value: `:white_check_mark: **Unbanned by ${interaction.user.username}**` 
+        });
+
       await interaction.update({
-        content: `${interaction.message.content}\n\n:white_check_mark: **Unbanned by ${interaction.user.username}**`,
+        embeds: [updatedEmbed],
         components: [updatedRow]
       });
     } catch (error) {
@@ -87,7 +98,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// Core Ban Function with 6-Hour Message Purge, Logging, and UNBAN Button
+// Core Ban Function with Styled Embed Logging and UNBAN Button
 async function executeBan(guild, user, reason) {
   try {
     const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
@@ -97,6 +108,18 @@ async function executeBan(guild, user, reason) {
       deleteMessageSeconds: 21600, 
       reason: `Auto-ban: ${reason}` 
     });
+
+    // Build Carl-bot style embed log
+    const banEmbed = new EmbedBuilder()
+      .setColor('#ED4245') // Dark Red accent color bar
+      .setAuthor({ name: 'ban' })
+      .setDescription(
+        `**Offender:** ${user.username} <@${user.id}>\n` +
+        `**Reason:** ${reason}\n` +
+        `**Responsible moderator:** ${client.user.tag}`
+      )
+      .setFooter({ text: `ID: ${user.id}` })
+      .setTimestamp();
 
     // Build green UNBAN button
     const unbanButton = new ButtonBuilder()
@@ -109,7 +132,7 @@ async function executeBan(guild, user, reason) {
     // Send log entry
     if (logChannel) {
       await logChannel.send({
-        content: `**${user.username}** (${user.id}) has been banned for: ${reason}. (All posts in the last 6 hours purged)`,
+        embeds: [banEmbed],
         components: [row]
       });
     } else {
