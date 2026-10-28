@@ -19,7 +19,7 @@ const client = new Client({
   ]
 });
 
-// Configuration IDs
+// Server & Role IDs
 const GUILD_ID = '999413076505936023';
 const DUMBASS_ROLE_ID = '1348346119092048023';
 const UNDERAGE_ROLE_ID = '1332829647028617308';
@@ -83,12 +83,12 @@ client.on(Events.MessageDelete, async (message) => {
   const content = message.content ? message.content : '*[No text content or uncached message]*';
 
   const deleteEmbed = new EmbedBuilder()
-    .setColor('#ED4245') // Red accent matching Carl-bot deletion
+    .setColor('#ED4245') // Red accent
     .setAuthor({ name: message.author?.username || 'Unknown', iconURL: message.author?.displayAvatarURL() })
     .setDescription(
       `**Message deleted in <#${message.channel.id}>**\n\n` +
       `${content}\n\n` +
-      `Message ID: ${message.id}`
+      `**Message ID:** ${message.id}`
     )
     .setFooter({ text: `ID: ${message.author?.id || 'Unknown'}` })
     .setTimestamp();
@@ -110,12 +110,12 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
   const newContent = newMessage.content ? newMessage.content : '*[No text content]*';
 
   const editEmbed = new EmbedBuilder()
-    .setColor('#00A8FC') // Blue accent matching Carl-bot edit
+    .setColor('#00A8FC') // Blue accent
     .setAuthor({ name: newMessage.author.username, iconURL: newMessage.author.displayAvatarURL() })
     .setDescription(
       `**[Message edited in <#${newMessage.channel.id}>](${newMessage.url})**\n\n` +
       `**Before:** ${oldContent}\n` +
-      `**+After:** ${newContent}`
+      `**After:** ${newContent}`
     )
     .setFooter({ text: `ID: ${newMessage.author.id}` })
     .setTimestamp();
@@ -138,20 +138,15 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
 
-  // Joined Voice Channel
   if (!oldState.channelId && newState.channelId) {
     embed
       .setColor('#57F287') // Green accent
       .setDescription(`**Joined voice channel <#${newState.channelId}>**`);
-  }
-  // Left Voice Channel
-  else if (oldState.channelId && !newState.channelId) {
+  } else if (oldState.channelId && !newState.channelId) {
     embed
       .setColor('#ED4245') // Red accent
       .setDescription(`**Left voice channel <#${oldState.channelId}>**`);
-  }
-  // Switched Voice Channel
-  else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
+  } else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
     embed
       .setColor('#00A8FC') // Blue accent
       .setDescription(
@@ -174,8 +169,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 
   if (!oldMember.roles.cache.has(DUMBASS_ROLE_ID) && newMember.roles.cache.has(DUMBASS_ROLE_ID)) {
     await executeBan(newMember.guild, newMember.user, 'Not following socials');
-  } 
-  else if (!oldMember.roles.cache.has(UNDERAGE_ROLE_ID) && newMember.roles.cache.has(UNDERAGE_ROLE_ID)) {
+  } else if (!oldMember.roles.cache.has(UNDERAGE_ROLE_ID) && newMember.roles.cache.has(UNDERAGE_ROLE_ID)) {
     await executeBan(newMember.guild, newMember.user, 'Underage (16 and under)');
   }
 });
@@ -217,7 +211,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const existingEmbed = interaction.message.embeds[0];
       const updatedEmbed = EmbedBuilder.from(existingEmbed)
-        .setColor('#57F287')
+        .setColor('#57F287') // Change accent to Green
         .addFields({ 
           name: 'Status', 
           value: `:white_check_mark: **Unbanned by ${interaction.user.username}**` 
@@ -244,18 +238,21 @@ async function executeBan(guild, user, reason) {
   try {
     const logChannel = guild.channels.cache.get(BAN_LOG_CHANNEL_ID);
 
+    // Ban member and purge messages from the last 6 hours
     await guild.members.ban(user.id, { 
       deleteMessageSeconds: 21600, 
       reason: `Auto-ban: ${reason}` 
     });
 
+    // Unified Ban Log Embed
     const banEmbed = new EmbedBuilder()
       .setColor('#ED4245')
-      .setAuthor({ name: 'ban' })
+      .setAuthor({ name: user.username, iconURL: user.displayAvatarURL() })
       .setDescription(
-        `**Offender:** ${user.username} <@${user.id}>\n` +
+        `**Member Banned**\n\n` +
+        `**Offender:** ${user.username} (<@${user.id}>)\n` +
         `**Reason:** ${reason}\n` +
-        `**Responsible moderator:** ${client.user.tag}`
+        `**Responsible Moderator:** ${client.user.tag}`
       )
       .setFooter({ text: `ID: ${user.id}` })
       .setTimestamp();
