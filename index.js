@@ -97,7 +97,7 @@ client.on(Events.MessageDelete, async (message) => {
 });
 
 // ==========================================
-// 3. CHAT LOGS: MESSAGE EDIT
+// 3. CHAT LOGS: MESSAGE EDIT (FIXED)
 // ==========================================
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
   if (newMessage.guild?.id !== GUILD_ID || newMessage.author?.bot) return;
@@ -113,9 +113,9 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
     .setColor('#00A8FC') // Blue accent
     .setAuthor({ name: newMessage.author.username, iconURL: newMessage.author.displayAvatarURL() })
     .setDescription(
-      `**[Message edited in <#${newMessage.channel.id}>](${newMessage.url})**\n\n` +
+      `**[Message edited in #${newMessage.channel.name}](${newMessage.url})**\n\n` +
       `**Before:** ${oldContent}\n` +
-      `**After:** ${newContent}`
+      `**+After:** ${newContent}`
     )
     .setFooter({ text: `ID: ${newMessage.author.id}` })
     .setTimestamp();
@@ -211,7 +211,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const existingEmbed = interaction.message.embeds[0];
       const updatedEmbed = EmbedBuilder.from(existingEmbed)
-        .setColor('#57F287') // Change accent to Green
+        .setColor('#57F287') // Green accent
         .addFields({ 
           name: 'Status', 
           value: `:white_check_mark: **Unbanned by ${interaction.user.username}**` 
@@ -238,13 +238,11 @@ async function executeBan(guild, user, reason) {
   try {
     const logChannel = guild.channels.cache.get(BAN_LOG_CHANNEL_ID);
 
-    // Ban member and purge messages from the last 6 hours
     await guild.members.ban(user.id, { 
       deleteMessageSeconds: 21600, 
       reason: `Auto-ban: ${reason}` 
     });
 
-    // Unified Ban Log Embed
     const banEmbed = new EmbedBuilder()
       .setColor('#ED4245')
       .setAuthor({ name: user.username, iconURL: user.displayAvatarURL() })
