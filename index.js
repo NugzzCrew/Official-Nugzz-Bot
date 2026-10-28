@@ -97,7 +97,7 @@ client.on(Events.MessageDelete, async (message) => {
 });
 
 // ==========================================
-// 3. CHAT LOGS: MESSAGE EDIT (FIXED)
+// 3. CHAT LOGS: MESSAGE EDIT (MATCHED FORMAT)
 // ==========================================
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
   if (newMessage.guild?.id !== GUILD_ID || newMessage.author?.bot) return;
@@ -113,9 +113,10 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
     .setColor('#00A8FC') // Blue accent
     .setAuthor({ name: newMessage.author.username, iconURL: newMessage.author.displayAvatarURL() })
     .setDescription(
-      `**[Message edited in #${newMessage.channel.name}](${newMessage.url})**\n\n` +
+      `**Message edited in <#${newMessage.channel.id}>** [Jump to Message](${newMessage.url})\n\n` +
       `**Before:** ${oldContent}\n` +
-      `**+After:** ${newContent}`
+      `**After:** ${newContent}\n\n` +
+      `**Message ID:** ${newMessage.id}`
     )
     .setFooter({ text: `ID: ${newMessage.author.id}` })
     .setTimestamp();
@@ -260,12 +261,12 @@ async function executeBan(guild, user, reason) {
       .setLabel('UNBAN')
       .setStyle(ButtonStyle.Success);
 
-    const row = new ActionRowBuilder().addComponents(unbanButton);
+    const row = new ActionRowBuilder().addComponents(row => unbanButton);
 
     if (logChannel) {
       await logChannel.send({
         embeds: [banEmbed],
-        components: [row]
+        components: [new ActionRowBuilder().addComponents(unbanButton)]
       });
     } else {
       console.log('Could not find the ban logs channel. Verify BAN_LOG_CHANNEL_ID.');
