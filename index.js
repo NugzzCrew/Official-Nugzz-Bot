@@ -14,7 +14,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates
   ]
 });
 
@@ -23,14 +24,151 @@ const GUILD_ID = '999413076505936023';
 const DUMBASS_ROLE_ID = '1348346119092048023';
 const UNDERAGE_ROLE_ID = '1332829647028617308';
 const TRAP_CHANNEL_ID = '1522621788809330832';
-const LOG_CHANNEL_ID = '1391912641529774161';
+
+// Log Channel IDs
+const CHAT_LOG_CHANNEL_ID = '1391913833882321079';
+const VOICE_LOG_CHANNEL_ID = '1554560861597868112';
+const BAN_LOG_CHANNEL_ID = '1391912641529774161';
+const GENERAL_LOG_CHANNEL_ID = '1274531597663735899';
 
 client.once(Events.ClientReady, () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is online and ready.');
 });
 
-// Listener 1: Onboarding Role Auto-Ban
+// ==========================================
+// 1. GENERAL LOGS: MEMBER JOIN & LEAVE
+// ==========================================
+client.on(Events.GuildMemberAdd, async (member) => {
+  if (member.guild.id !== GUILD_ID) return;
+
+  const generalLogChannel = member.guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
+  if (!generalLogChannel) return;
+
+  const joinEmbed = new EmbedBuilder()
+    .setColor('#57F287') // Green accent
+    .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
+    .setDescription(`**Member Joined**\n<@${member.id}> joined the server.`)
+    .setFooter({ text: `ID: ${member.id}` })
+    .setTimestamp();
+
+  await generalLogChannel.send({ embeds: [joinEmbed] });
+});
+
+client.on(Events.GuildMemberRemove, async (member) => {
+  if (member.guild.id !== GUILD_ID) return;
+
+  const generalLogChannel = member.guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
+  if (!generalLogChannel) return;
+
+  const leaveEmbed = new EmbedBuilder()
+    .setColor('#ED4245') // Red accent
+    .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
+    .setDescription(`**Member Left**\n<@${member.id}> left or was removed from the server.`)
+    .setFooter({ text: `ID: ${member.id}` })
+    .setTimestamp();
+
+  await generalLogChannel.send({ embeds: [leaveEmbed] });
+});
+
+// ==========================================
+// 2. CHAT LOGS: MESSAGE DELETION
+// ==========================================
+client.on(Events.MessageDelete, async (message) => {
+  if (message.guild?.id !== GUILD_ID || message.author?.bot) return;
+
+  const chatLogChannel = message.guild.channels.cache.get(CHAT_LOG_CHANNEL_ID);
+  if (!chatLogChannel) return;
+
+  const content = message.content ? message.content : '*[No text content or uncached message]*';
+
+  const deleteEmbed = new EmbedBuilder()
+    .setColor('#ED4245') // Red accent matching Carl-bot deletion
+    .setAuthor({ name: message.author?.username || 'Unknown', iconURL: message.author?.displayAvatarURL() })
+    .setDescription(
+      `**Message deleted in <#${message.channel.id}>**\n\n` +
+      `${content}\n\n` +
+      `Message ID: ${message.id}`
+    )
+    .setFooter({ text: `ID: ${message.author?.id || 'Unknown'}` })
+    .setTimestamp();
+
+  await chatLogChannel.send({ embeds: [deleteEmbed] });
+});
+
+// ==========================================
+// 3. CHAT LOGS: MESSAGE EDIT
+// ==========================================
+client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
+  if (newMessage.guild?.id !== GUILD_ID || newMessage.author?.bot) return;
+  if (oldMessage.content === newMessage.content) return;
+
+  const chatLogChannel = newMessage.guild.channels.cache.get(CHAT_LOG_CHANNEL_ID);
+  if (!chatLogChannel) return;
+
+  const oldContent = oldMessage.content ? oldMessage.content : '*[Uncached original message]*';
+  const newContent = newMessage.content ? newMessage.content : '*[No text content]*';
+
+  const editEmbed = new EmbedBuilder()
+    .setColor('#00A8FC') // Blue accent matching Carl-bot edit
+    .setAuthor({ name: newMessage.author.username, iconURL: newMessage.author.displayAvatarURL() })
+    .setDescription(
+      `**[Message edited in <#${newMessage.channel.id}>](${newMessage.url})**\n\n` +
+      `**Before:** ${oldContent}\n` +
+      `**+After:** ${newContent}`
+    )
+    .setFooter({ text: `ID: ${newMessage.author.id}` })
+    .setTimestamp();
+
+  await chatLogChannel.send({ embeds: [editEmbed] });
+});
+
+// ==========================================
+// 4. VOICE LOGS: JOIN / LEAVE / MOVE
+// ==========================================
+client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
+  if (newState.guild.id !== GUILD_ID || newState.member.user.bot) return;
+
+  const voiceLogChannel = newState.guild.channels.cache.get(VOICE_LOG_CHANNEL_ID);
+  if (!voiceLogChannel) return;
+
+  const member = newState.member;
+  const embed = new EmbedBuilder()
+    .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
+    .setFooter({ text: `ID: ${member.id}` })
+    .setTimestamp();
+
+  // Joined Voice Channel
+  if (!oldState.channelId && newState.channelId) {
+    embed
+      .setColor('#57F287') // Green accent
+      .setDescription(`**Joined voice channel <#${newState.channelId}>**`);
+  }
+  // Left Voice Channel
+  else if (oldState.channelId && !newState.channelId) {
+    embed
+      .setColor('#ED4245') // Red accent
+      .setDescription(`**Left voice channel <#${oldState.channelId}>**`);
+  }
+  // Switched Voice Channel
+  else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
+    embed
+      .setColor('#00A8FC') // Blue accent
+      .setDescription(
+        `**Moved voice channels**\n` +
+        `**From:** <#${oldState.channelId}>\n` +
+        `**To:** <#${newState.channelId}>`
+      );
+  } else {
+    return;
+  }
+
+  await voiceLogChannel.send({ embeds: [embed] });
+});
+
+// ==========================================
+// 5. ONBOARDING AUTO-BAN LISTENER
+// ==========================================
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (newMember.guild.id !== GUILD_ID) return;
 
@@ -42,7 +180,9 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   }
 });
 
-// Listener 2: Honeypot Channel Auto-Ban
+// ==========================================
+// 6. HONEYPOT TRAP LISTENER
+// ==========================================
 client.on(Events.MessageCreate, async (message) => {
   if (message.guild?.id !== GUILD_ID || message.channel.id !== TRAP_CHANNEL_ID || message.author.bot) return;
 
@@ -55,7 +195,9 @@ client.on(Events.MessageCreate, async (message) => {
   await executeBan(message.guild, message.author, 'Triggered honeypot channel (trap-channel-4-bots)');
 });
 
-// Listener 3: Green UNBAN Button Interaction
+// ==========================================
+// 7. UNBAN BUTTON INTERACTION LISTENER
+// ==========================================
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
@@ -63,10 +205,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const targetUserId = interaction.customId.split('unban_')[1];
 
     try {
-      // Execute unban in Discord
       await interaction.guild.members.unban(targetUserId, `Manual unban triggered by ${interaction.user.tag}`);
 
-      // Disable the button
       const disabledButton = new ButtonBuilder()
         .setCustomId(`unbanned_${targetUserId}`)
         .setLabel('UNBANNED')
@@ -75,10 +215,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const updatedRow = new ActionRowBuilder().addComponents(disabledButton);
 
-      // Update the original embed to reflect who unbanned the user
       const existingEmbed = interaction.message.embeds[0];
       const updatedEmbed = EmbedBuilder.from(existingEmbed)
-        .setColor('#57F287') // Change color accent to Green
+        .setColor('#57F287')
         .addFields({ 
           name: 'Status', 
           value: `:white_check_mark: **Unbanned by ${interaction.user.username}**` 
@@ -98,20 +237,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// Core Ban Function with Styled Embed Logging and UNBAN Button
+// ==========================================
+// CORE BAN FUNCTION
+// ==========================================
 async function executeBan(guild, user, reason) {
   try {
-    const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
+    const logChannel = guild.channels.cache.get(BAN_LOG_CHANNEL_ID);
 
-    // Ban member and purge all messages from the last 6 hours (21600 seconds)
     await guild.members.ban(user.id, { 
       deleteMessageSeconds: 21600, 
       reason: `Auto-ban: ${reason}` 
     });
 
-    // Build Carl-bot style embed log
     const banEmbed = new EmbedBuilder()
-      .setColor('#ED4245') // Dark Red accent color bar
+      .setColor('#ED4245')
       .setAuthor({ name: 'ban' })
       .setDescription(
         `**Offender:** ${user.username} <@${user.id}>\n` +
@@ -121,7 +260,6 @@ async function executeBan(guild, user, reason) {
       .setFooter({ text: `ID: ${user.id}` })
       .setTimestamp();
 
-    // Build green UNBAN button
     const unbanButton = new ButtonBuilder()
       .setCustomId(`unban_${user.id}`)
       .setLabel('UNBAN')
@@ -129,14 +267,13 @@ async function executeBan(guild, user, reason) {
 
     const row = new ActionRowBuilder().addComponents(unbanButton);
 
-    // Send log entry
     if (logChannel) {
       await logChannel.send({
         embeds: [banEmbed],
         components: [row]
       });
     } else {
-      console.log('Could not find the logs channel. Verify LOG_CHANNEL_ID.');
+      console.log('Could not find the ban logs channel. Verify BAN_LOG_CHANNEL_ID.');
     }
   } catch (error) {
     console.error(`Failed to ban ${user.username}. Check role hierarchy and permissions. Error:`, error);
