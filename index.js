@@ -47,7 +47,11 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
   const joinEmbed = new EmbedBuilder()
     .setColor('#57F287') // Green accent
-    .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
+    .setAuthor({ 
+      name: member.user.username, 
+      iconURL: member.user.displayAvatarURL(),
+      url: `https://discord.com/users/${member.id}`
+    })
     .setDescription(`**Member Joined**\n<@${member.id}> joined the server.`)
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
@@ -63,7 +67,11 @@ client.on(Events.GuildMemberRemove, async (member) => {
 
   const leaveEmbed = new EmbedBuilder()
     .setColor('#ED4245') // Red accent
-    .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
+    .setAuthor({ 
+      name: member.user.username, 
+      iconURL: member.user.displayAvatarURL(),
+      url: `https://discord.com/users/${member.id}`
+    })
     .setDescription(`**Member Left**\n<@${member.id}> left or was removed from the server.`)
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
@@ -84,7 +92,11 @@ client.on(Events.MessageDelete, async (message) => {
 
   const deleteEmbed = new EmbedBuilder()
     .setColor('#ED4245') // Red accent
-    .setAuthor({ name: message.author?.username || 'Unknown', iconURL: message.author?.displayAvatarURL() })
+    .setAuthor({ 
+      name: message.author?.username || 'Unknown', 
+      iconURL: message.author?.displayAvatarURL(),
+      url: message.author ? `https://discord.com/users/${message.author.id}` : undefined
+    })
     .setDescription(
       `**Message deleted in <#${message.channel.id}>**\n\n` +
       `${content}\n\n` +
@@ -97,7 +109,7 @@ client.on(Events.MessageDelete, async (message) => {
 });
 
 // ==========================================
-// 3. CHAT LOGS: MESSAGE EDIT (MATCHED FORMAT)
+// 3. CHAT LOGS: MESSAGE EDIT
 // ==========================================
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
   if (newMessage.guild?.id !== GUILD_ID || newMessage.author?.bot) return;
@@ -111,7 +123,11 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
 
   const editEmbed = new EmbedBuilder()
     .setColor('#00A8FC') // Blue accent
-    .setAuthor({ name: newMessage.author.username, iconURL: newMessage.author.displayAvatarURL() })
+    .setAuthor({ 
+      name: newMessage.author.username, 
+      iconURL: newMessage.author.displayAvatarURL(),
+      url: `https://discord.com/users/${newMessage.author.id}`
+    })
     .setDescription(
       `**Message edited in <#${newMessage.channel.id}>** [Jump to Message](${newMessage.url})\n\n` +
       `**Before:** ${oldContent}\n` +
@@ -135,7 +151,11 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 
   const member = newState.member;
   const embed = new EmbedBuilder()
-    .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
+    .setAuthor({ 
+      name: member.user.username, 
+      iconURL: member.user.displayAvatarURL(),
+      url: `https://discord.com/users/${member.id}`
+    })
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
 
@@ -246,7 +266,11 @@ async function executeBan(guild, user, reason) {
 
     const banEmbed = new EmbedBuilder()
       .setColor('#ED4245')
-      .setAuthor({ name: user.username, iconURL: user.displayAvatarURL() })
+      .setAuthor({ 
+        name: user.username, 
+        iconURL: user.displayAvatarURL(),
+        url: `https://discord.com/users/${user.id}`
+      })
       .setDescription(
         `**Member Banned**\n\n` +
         `**Offender:** ${user.username} (<@${user.id}>)\n` +
@@ -261,12 +285,12 @@ async function executeBan(guild, user, reason) {
       .setLabel('UNBAN')
       .setStyle(ButtonStyle.Success);
 
-    const row = new ActionRowBuilder().addComponents(row => unbanButton);
+    const row = new ActionRowBuilder().addComponents(unbanButton);
 
     if (logChannel) {
       await logChannel.send({
         embeds: [banEmbed],
-        components: [new ActionRowBuilder().addComponents(unbanButton)]
+        components: [row]
       });
     } else {
       console.log('Could not find the ban logs channel. Verify BAN_LOG_CHANNEL_ID.');
