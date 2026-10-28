@@ -31,6 +31,9 @@ const VOICE_LOG_CHANNEL_ID = '1554560861597868112';
 const BAN_LOG_CHANNEL_ID = '1391912641529774161';
 const GENERAL_LOG_CHANNEL_ID = '1274531597663735899';
 
+// Regex pattern matching all Discord invite formats
+const DISCORD_INVITE_REGEX = /(https?:\/\/)?(www\.)?(discord\.(gg|io|me|li)|discord(app)?\.com\/invite)\/[a-zA-Z0-9\-]+/i;
+
 client.once(Events.ClientReady, () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is online and ready.');
@@ -196,18 +199,31 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 });
 
 // ==========================================
-// 6. HONEYPOT TRAP LISTENER
+// 6. MESSAGE LISTENERS: HONEYPOT & INVITE LINK AUTO-BAN
 // ==========================================
 client.on(Events.MessageCreate, async (message) => {
-  if (message.guild?.id !== GUILD_ID || message.channel.id !== TRAP_CHANNEL_ID || message.author.bot) return;
+  if (message.guild?.id !== GUILD_ID || message.author.bot) return;
 
-  try {
-    await message.delete();
-  } catch (err) {
-    console.error('Failed to delete honeypot message:', err);
+  // Honeypot Trap Channel Auto-Ban
+  if (message.channel.id === TRAP_CHANNEL_ID) {
+    try {
+      await message.delete();
+    } catch (err) {
+      console.error('Failed to delete honeypot message:', err);
+    }
+    await executeBan(message.guild, message.author, 'Triggered honeypot channel (trap-channel-4-bots)');
+    return;
   }
 
-  await executeBan(message.guild, message.author, 'Triggered honeypot channel (trap-channel-4-bots)');
+  // Anti-Discord Invite Link Auto-Ban
+  if (DISCORD_INVITE_REGEX.test(message.content)) {
+    try {
+      await message.delete();
+    } catch (err) {
+      console.error('Failed to delete invite message:', err);
+    }
+    await executeBan(message.guild, message.author, 'Posting unauthorized Discord invite links');
+  }
 });
 
 // ==========================================
