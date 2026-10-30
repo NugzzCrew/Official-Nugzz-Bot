@@ -205,4 +205,4 @@ client.on('guildMemberAdd', async member => {
     await welcomeChannel.send({ embeds: [embed] });
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.TOKEN);
