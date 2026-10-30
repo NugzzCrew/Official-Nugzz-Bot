@@ -51,19 +51,25 @@ client.on(Events.GuildMemberAdd, async (member) => {
   if (!welcomeChannel) return;
 
   const createdUnix = Math.floor(member.user.createdTimestamp / 1000);
+  const accountAgeMs = Date.now() - member.user.createdTimestamp;
+  const isNewAccount = accountAgeMs < 7 * 24 * 60 * 60 * 1000; // Under 7 days old
+
+  let description = `**Member joined**\n<@${member.id}> ${member.guild.memberCount}th to join\n`;
+  
+  if (isNewAccount) {
+    description += `⚠️ **NEW ACCOUNT** created <t:${createdUnix}:R> ⚠️`;
+  } else {
+    description += `created <t:${createdUnix}:R>`;
+  }
 
   const joinEmbed = new EmbedBuilder()
-    .setColor('#D4AF37') // Official Nugzz Gold accent
+    .setColor('#57F287') // Green accent
     .setAuthor({ 
       name: member.user.username, 
       iconURL: member.user.displayAvatarURL(),
       url: `https://discord.com/users/${member.id}`
     })
-    .setDescription(
-      `**Member Joined**\n` +
-      `<@${member.id}> joined the server.\n\n` +
-      `**Account Creation:** <t:${createdUnix}:R> (<t:${createdUnix}:D>)`
-    )
+    .setDescription(description)
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
 
@@ -79,14 +85,24 @@ client.on(Events.GuildMemberRemove, async (member) => {
   const generalLogChannel = member.guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
   if (!generalLogChannel) return;
 
+  const joinedUnix = member.joinedTimestamp ? Math.floor(member.joinedTimestamp / 1000) : null;
+  const joinedText = joinedUnix ? `joined <t:${joinedUnix}:R>` : 'joined at an unknown time';
+
+  // Map user roles (excluding @everyone)
+  let rolesText = '';
+  if (member.roles.cache.size > 1) {
+    const roles = member.roles.cache.filter(r => r.id !== member.guild.id).map(r => `<@&${r.id}>`).join(' ');
+    rolesText = `\n**Roles:** ${roles.length > 1000 ? roles.substring(0, 1000) + '...' : roles}`;
+  }
+
   const leaveEmbed = new EmbedBuilder()
-    .setColor('#ED4245') // Red accent
+    .setColor('#FEE75C') // Yellow accent for leaves
     .setAuthor({ 
       name: member.user.username, 
       iconURL: member.user.displayAvatarURL(),
       url: `https://discord.com/users/${member.id}`
     })
-    .setDescription(`**Member Left**\n<@${member.id}> left or was removed from the server.`)
+    .setDescription(`**Member left**\n<@${member.id}> ${joinedText}${rolesText}`)
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
 
@@ -223,22 +239,30 @@ client.on(Events.MessageCreate, async (message) => {
 
     try {
       const createdUnix = Math.floor(message.author.createdTimestamp / 1000);
+      const joinedUnix = message.member.joinedTimestamp ? Math.floor(message.member.joinedTimestamp / 1000) : null;
+      const joinedText = joinedUnix ? `joined <t:${joinedUnix}:R>` : 'joined at an unknown time';
+      
+      let testRolesText = '';
+      if (message.member.roles.cache.size > 1) {
+        const roles = message.member.roles.cache.filter(r => r.id !== message.guild.id).map(r => `<@&${r.id}>`).join(' ');
+        testRolesText = `\n**Roles:** ${roles}`;
+      }
 
       // Dummy Welcome
       const welcomeChannel = message.guild.channels.cache.get(WELCOME_CHANNEL_ID);
       const joinEmbed = new EmbedBuilder()
-        .setColor('#D4AF37')
+        .setColor('#57F287')
         .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
-        .setDescription(`**Member Joined**\n<@${message.author.id}> joined the server.\n\n**Account Creation:** <t:${createdUnix}:R> (<t:${createdUnix}:D>)`)
+        .setDescription(`**Member joined**\n<@${message.author.id}> ${message.guild.memberCount}th to join\n⚠️ **NEW ACCOUNT** created <t:${createdUnix}:R> ⚠️`)
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
       if (welcomeChannel) await welcomeChannel.send({ embeds: [joinEmbed] });
 
       // Dummy Leave
       const generalLogChannel = message.guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
       const leaveEmbed = new EmbedBuilder()
-        .setColor('#ED4245')
+        .setColor('#FEE75C')
         .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
-        .setDescription(`**Member Left**\n<@${message.author.id}> left or was removed from the server.`)
+        .setDescription(`**Member left**\n<@${message.author.id}> ${joinedText}${testRolesText}`)
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
       if (generalLogChannel) await generalLogChannel.send({ embeds: [leaveEmbed] });
 
@@ -282,7 +306,7 @@ client.on(Events.MessageCreate, async (message) => {
         .setCustomId(`test_unban`)
         .setLabel('UNBAN')
         .setStyle(ButtonStyle.Success)
-        .setDisabled(true); // Disabled for the test so it doesn't throw errors
+        .setDisabled(true); 
       const testRow = new ActionRowBuilder().addComponents(testUnbanButton);
 
       if (banLogChannel) await banLogChannel.send({ embeds: [banEmbed], components: [testRow] });
