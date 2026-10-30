@@ -17,7 +17,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildPresences // Needed to ensure User updates cache properly
+    GatewayIntentBits.GuildPresences 
   ]
 });
 
@@ -53,9 +53,9 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
   const createdUnix = Math.floor(member.user.createdTimestamp / 1000);
   const accountAgeMs = Date.now() - member.user.createdTimestamp;
-  const isNewAccount = accountAgeMs < 7 * 24 * 60 * 60 * 1000; // Under 7 days old
+  const isNewAccount = accountAgeMs < 7 * 24 * 60 * 60 * 1000; 
 
-  let description = `**Member joined**\n<@${member.id}> ${member.guild.memberCount}th to join\n`;
+  let description = `**Member joined**\n**${member.user.username}** ${member.guild.memberCount}th to join\n`;
   
   if (isNewAccount) {
     description += `⚠️ **NEW ACCOUNT** created <t:${createdUnix}:R> ⚠️`;
@@ -64,7 +64,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
   }
 
   const joinEmbed = new EmbedBuilder()
-    .setColor('#57F287') // Green accent
+    .setColor('#57F287') 
     .setAuthor({ 
       name: member.user.username, 
       iconURL: member.user.displayAvatarURL(),
@@ -96,13 +96,13 @@ client.on(Events.GuildMemberRemove, async (member) => {
   }
 
   const leaveEmbed = new EmbedBuilder()
-    .setColor('#FEE75C') // Yellow accent
+    .setColor('#FEE75C') 
     .setAuthor({ 
       name: member.user.username, 
       iconURL: member.user.displayAvatarURL(),
       url: `https://discord.com/users/${member.id}`
     })
-    .setDescription(`**Member left**\n<@${member.id}> ${joinedText}${rolesText}`)
+    .setDescription(`**Member left**\n**${member.user.username}** ${joinedText}${rolesText}`)
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
 
@@ -131,14 +131,14 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     const newNick = newMember.nickname ? newMember.nickname : newMember.user.username;
 
     const nickEmbed = new EmbedBuilder()
-      .setColor('#00A8FC') // Blue accent for profile edits
+      .setColor('#00A8FC') 
       .setAuthor({ 
         name: newMember.user.username, 
         iconURL: newMember.user.displayAvatarURL(),
         url: `https://discord.com/users/${newMember.id}`
       })
       .setDescription(
-        `**Nickname changed**\n<@${newMember.id}>\n\n` +
+        `**Nickname changed**\n**${newMember.user.username}**\n\n` +
         `**Before:** ${oldNick}\n` +
         `**After:** ${newNick}`
       )
@@ -153,7 +153,6 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 // 4. GENERAL LOGS: USERNAME & AVATAR UPDATES
 // ==========================================
 client.on(Events.UserUpdate, async (oldUser, newUser) => {
-  // Ensure we only log updates for users actually in your server
   const guild = client.guilds.cache.get(GUILD_ID);
   if (!guild) return;
   const member = guild.members.cache.get(newUser.id);
@@ -172,7 +171,7 @@ client.on(Events.UserUpdate, async (oldUser, newUser) => {
         url: `https://discord.com/users/${newUser.id}`
       })
       .setDescription(
-        `**Username changed**\n<@${newUser.id}>\n\n` +
+        `**Username changed**\n**${newUser.username}**\n\n` +
         `**Before:** ${oldUser.username}\n` +
         `**After:** ${newUser.username}`
       )
@@ -191,7 +190,7 @@ client.on(Events.UserUpdate, async (oldUser, newUser) => {
         iconURL: newUser.displayAvatarURL(),
         url: `https://discord.com/users/${newUser.id}`
       })
-      .setDescription(`**Avatar updated**\n<@${newUser.id}> updated their profile picture.`)
+      .setDescription(`**Avatar updated**\n**${newUser.username}** updated their profile picture.`)
       .setThumbnail(newUser.displayAvatarURL({ size: 512 }))
       .setFooter({ text: `ID: ${newUser.id}` })
       .setTimestamp();
@@ -321,7 +320,7 @@ client.on(Events.MessageCreate, async (message) => {
       const joinEmbed = new EmbedBuilder()
         .setColor('#57F287')
         .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
-        .setDescription(`**Member joined**\n<@${message.author.id}> ${message.guild.memberCount}th to join\n⚠️ **NEW ACCOUNT** created <t:${createdUnix}:R> ⚠️`)
+        .setDescription(`**Member joined**\n**${message.author.username}** ${message.guild.memberCount}th to join\n⚠️ **NEW ACCOUNT** created <t:${createdUnix}:R> ⚠️`)
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
       if (welcomeChannel) await welcomeChannel.send({ embeds: [joinEmbed] });
 
@@ -330,19 +329,19 @@ client.on(Events.MessageCreate, async (message) => {
       const leaveEmbed = new EmbedBuilder()
         .setColor('#FEE75C')
         .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
-        .setDescription(`**Member left**\n<@${message.author.id}> ${joinedText}${testRolesText}`)
+        .setDescription(`**Member left**\n**${message.author.username}** ${joinedText}${testRolesText}`)
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
       
       const nickTestEmbed = new EmbedBuilder()
         .setColor('#00A8FC')
         .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
-        .setDescription(`**Nickname changed**\n<@${message.author.id}>\n\n**Before:** OldNickTest\n**After:** NewNickTest`)
+        .setDescription(`**Nickname changed**\n**${message.author.username}**\n\n**Before:** OldNickTest\n**After:** NewNickTest`)
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
 
       const avatarTestEmbed = new EmbedBuilder()
         .setColor('#00A8FC')
         .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
-        .setDescription(`**Avatar updated**\n<@${message.author.id}> updated their profile picture.`)
+        .setDescription(`**Avatar updated**\n**${message.author.username}** updated their profile picture.`)
         .setThumbnail(message.author.displayAvatarURL({ size: 512 }))
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
 
@@ -382,7 +381,7 @@ client.on(Events.MessageCreate, async (message) => {
       const banEmbed = new EmbedBuilder()
         .setColor('#ED4245')
         .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
-        .setDescription(`**Member Banned**\n\n**Offender:** ${message.author.username} (<@${message.author.id}>)\n**Reason:** Simulated Ban Test\n**Responsible Moderator:** ${client.user.tag}`)
+        .setDescription(`**Member Banned**\n\n**Offender:** ${message.author.username} (\`${message.author.id}\`)\n**Reason:** Simulated Ban Test\n**Responsible Moderator:** ${client.user.tag}`)
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
         
       const testUnbanButton = new ButtonBuilder()
@@ -477,7 +476,7 @@ async function executeBan(guild, user, reason) {
       })
       .setDescription(
         `**Member Banned**\n\n` +
-        `**Offender:** ${user.username} (<@${user.id}>)\n` +
+        `**Offender:** ${user.username} (\`${user.id}\`)\n` +
         `**Reason:** ${reason}\n` +
         `**Responsible Moderator:** ${client.user.tag}`
       )
