@@ -16,7 +16,8 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildVoiceStates
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildPresences // Needed to ensure User updates cache properly
   ]
 });
 
@@ -88,7 +89,6 @@ client.on(Events.GuildMemberRemove, async (member) => {
   const joinedUnix = member.joinedTimestamp ? Math.floor(member.joinedTimestamp / 1000) : null;
   const joinedText = joinedUnix ? `joined <t:${joinedUnix}:R>` : 'joined at an unknown time';
 
-  // Map user roles (excluding @everyone)
   let rolesText = '';
   if (member.roles.cache.size > 1) {
     const roles = member.roles.cache.filter(r => r.id !== member.guild.id).map(r => `<@&${r.id}>`).join(' ');
@@ -96,7 +96,7 @@ client.on(Events.GuildMemberRemove, async (member) => {
   }
 
   const leaveEmbed = new EmbedBuilder()
-    .setColor('#FEE75C') // Yellow accent for leaves
+    .setColor('#FEE75C') // Yellow accent
     .setAuthor({ 
       name: member.user.username, 
       iconURL: member.user.displayAvatarURL(),
@@ -110,7 +110,98 @@ client.on(Events.GuildMemberRemove, async (member) => {
 });
 
 // ==========================================
-// 3. CHAT LOGS: MESSAGE DELETION
+// 3. GENERAL LOGS: NICKNAME UPDATES & AUTO-BANS
+// ==========================================
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  if (newMember.guild.id !== GUILD_ID) return;
+
+  // --- Auto-Ban Checks ---
+  if (!oldMember.roles.cache.has(DUMBASS_ROLE_ID) && newMember.roles.cache.has(DUMBASS_ROLE_ID)) {
+    await executeBan(newMember.guild, newMember.user, 'Not following socials');
+  } else if (!oldMember.roles.cache.has(UNDERAGE_ROLE_ID) && newMember.roles.cache.has(UNDERAGE_ROLE_ID)) {
+    await executeBan(newMember.guild, newMember.user, 'Underage (16 and under)');
+  }
+
+  // --- Nickname Change Logs ---
+  if (oldMember.nickname !== newMember.nickname) {
+    const generalLogChannel = newMember.guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
+    if (!generalLogChannel) return;
+
+    const oldNick = oldMember.nickname ? oldMember.nickname : oldMember.user.username;
+    const newNick = newMember.nickname ? newMember.nickname : newMember.user.username;
+
+    const nickEmbed = new EmbedBuilder()
+      .setColor('#00A8FC') // Blue accent for profile edits
+      .setAuthor({ 
+        name: newMember.user.username, 
+        iconURL: newMember.user.displayAvatarURL(),
+        url: `https://discord.com/users/${newMember.id}`
+      })
+      .setDescription(
+        `**Nickname changed**\n<@${newMember.id}>\n\n` +
+        `**Before:** ${oldNick}\n` +
+        `**After:** ${newNick}`
+      )
+      .setFooter({ text: `ID: ${newMember.id}` })
+      .setTimestamp();
+
+    await generalLogChannel.send({ embeds: [nickEmbed] });
+  }
+});
+
+// ==========================================
+// 4. GENERAL LOGS: USERNAME & AVATAR UPDATES
+// ==========================================
+client.on(Events.UserUpdate, async (oldUser, newUser) => {
+  // Ensure we only log updates for users actually in your server
+  const guild = client.guilds.cache.get(GUILD_ID);
+  if (!guild) return;
+  const member = guild.members.cache.get(newUser.id);
+  if (!member) return;
+
+  const generalLogChannel = guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
+  if (!generalLogChannel) return;
+
+  // Username Change
+  if (oldUser.username !== newUser.username) {
+    const userEmbed = new EmbedBuilder()
+      .setColor('#00A8FC')
+      .setAuthor({ 
+        name: newUser.username, 
+        iconURL: newUser.displayAvatarURL(),
+        url: `https://discord.com/users/${newUser.id}`
+      })
+      .setDescription(
+        `**Username changed**\n<@${newUser.id}>\n\n` +
+        `**Before:** ${oldUser.username}\n` +
+        `**After:** ${newUser.username}`
+      )
+      .setFooter({ text: `ID: ${newUser.id}` })
+      .setTimestamp();
+
+    await generalLogChannel.send({ embeds: [userEmbed] });
+  }
+
+  // Avatar Change
+  if (oldUser.avatar !== newUser.avatar) {
+    const avatarEmbed = new EmbedBuilder()
+      .setColor('#00A8FC')
+      .setAuthor({ 
+        name: newUser.username, 
+        iconURL: newUser.displayAvatarURL(),
+        url: `https://discord.com/users/${newUser.id}`
+      })
+      .setDescription(`**Avatar updated**\n<@${newUser.id}> updated their profile picture.`)
+      .setThumbnail(newUser.displayAvatarURL({ size: 512 }))
+      .setFooter({ text: `ID: ${newUser.id}` })
+      .setTimestamp();
+
+    await generalLogChannel.send({ embeds: [avatarEmbed] });
+  }
+});
+
+// ==========================================
+// 5. CHAT LOGS: MESSAGE DELETION
 // ==========================================
 client.on(Events.MessageDelete, async (message) => {
   if (message.guild?.id !== GUILD_ID || message.author?.bot) return;
@@ -121,7 +212,7 @@ client.on(Events.MessageDelete, async (message) => {
   const content = message.content ? message.content : '*[No text content or uncached message]*';
 
   const deleteEmbed = new EmbedBuilder()
-    .setColor('#ED4245') // Red accent
+    .setColor('#ED4245')
     .setAuthor({ 
       name: message.author?.username || 'Unknown', 
       iconURL: message.author?.displayAvatarURL(),
@@ -139,7 +230,7 @@ client.on(Events.MessageDelete, async (message) => {
 });
 
 // ==========================================
-// 4. CHAT LOGS: MESSAGE EDIT
+// 6. CHAT LOGS: MESSAGE EDIT
 // ==========================================
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
   if (newMessage.guild?.id !== GUILD_ID || newMessage.author?.bot) return;
@@ -152,7 +243,7 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
   const newContent = newMessage.content ? newMessage.content : '*[No text content]*';
 
   const editEmbed = new EmbedBuilder()
-    .setColor('#00A8FC') // Blue accent
+    .setColor('#00A8FC')
     .setAuthor({ 
       name: newMessage.author.username, 
       iconURL: newMessage.author.displayAvatarURL(),
@@ -171,7 +262,7 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
 });
 
 // ==========================================
-// 5. VOICE LOGS: JOIN / LEAVE / MOVE
+// 7. VOICE LOGS: JOIN / LEAVE / MOVE
 // ==========================================
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   if (newState.guild.id !== GUILD_ID || newState.member.user.bot) return;
@@ -190,21 +281,11 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     .setTimestamp();
 
   if (!oldState.channelId && newState.channelId) {
-    embed
-      .setColor('#57F287') // Green accent
-      .setDescription(`**Joined voice channel <#${newState.channelId}>**`);
+    embed.setColor('#57F287').setDescription(`**Joined voice channel <#${newState.channelId}>**`);
   } else if (oldState.channelId && !newState.channelId) {
-    embed
-      .setColor('#ED4245') // Red accent
-      .setDescription(`**Left voice channel <#${oldState.channelId}>**`);
+    embed.setColor('#ED4245').setDescription(`**Left voice channel <#${oldState.channelId}>**`);
   } else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-    embed
-      .setColor('#00A8FC') // Blue accent
-      .setDescription(
-        `**Moved voice channels**\n` +
-        `**From:** <#${oldState.channelId}>\n` +
-        `**To:** <#${newState.channelId}>`
-      );
+    embed.setColor('#00A8FC').setDescription(`**Moved voice channels**\n**From:** <#${oldState.channelId}>\n**To:** <#${newState.channelId}>`);
   } else {
     return;
   }
@@ -213,20 +294,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 });
 
 // ==========================================
-// 6. ONBOARDING AUTO-BAN LISTENER
-// ==========================================
-client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
-  if (newMember.guild.id !== GUILD_ID) return;
-
-  if (!oldMember.roles.cache.has(DUMBASS_ROLE_ID) && newMember.roles.cache.has(DUMBASS_ROLE_ID)) {
-    await executeBan(newMember.guild, newMember.user, 'Not following socials');
-  } else if (!oldMember.roles.cache.has(UNDERAGE_ROLE_ID) && newMember.roles.cache.has(UNDERAGE_ROLE_ID)) {
-    await executeBan(newMember.guild, newMember.user, 'Underage (16 and under)');
-  }
-});
-
-// ==========================================
-// 7. MESSAGE LISTENERS: HONEYPOT, INVITE LINKS & TEST COMMAND
+// 8. MESSAGE LISTENERS: HONEYPOT, INVITE LINKS & TEST COMMAND
 // ==========================================
 client.on(Events.MessageCreate, async (message) => {
   if (message.guild?.id !== GUILD_ID || message.author.bot) return;
@@ -257,14 +325,30 @@ client.on(Events.MessageCreate, async (message) => {
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
       if (welcomeChannel) await welcomeChannel.send({ embeds: [joinEmbed] });
 
-      // Dummy Leave
+      // Dummy Leave & Profile Updates
       const generalLogChannel = message.guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
       const leaveEmbed = new EmbedBuilder()
         .setColor('#FEE75C')
         .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
         .setDescription(`**Member left**\n<@${message.author.id}> ${joinedText}${testRolesText}`)
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
-      if (generalLogChannel) await generalLogChannel.send({ embeds: [leaveEmbed] });
+      
+      const nickTestEmbed = new EmbedBuilder()
+        .setColor('#00A8FC')
+        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
+        .setDescription(`**Nickname changed**\n<@${message.author.id}>\n\n**Before:** OldNickTest\n**After:** NewNickTest`)
+        .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
+
+      const avatarTestEmbed = new EmbedBuilder()
+        .setColor('#00A8FC')
+        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
+        .setDescription(`**Avatar updated**\n<@${message.author.id}> updated their profile picture.`)
+        .setThumbnail(message.author.displayAvatarURL({ size: 512 }))
+        .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
+
+      if (generalLogChannel) {
+        await generalLogChannel.send({ embeds: [leaveEmbed, nickTestEmbed, avatarTestEmbed] });
+      }
 
       // Dummy Chat Logs (Delete & Edit)
       const chatLogChannel = message.guild.channels.cache.get(CHAT_LOG_CHANNEL_ID);
@@ -281,8 +365,7 @@ client.on(Events.MessageCreate, async (message) => {
         .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
       
       if (chatLogChannel) {
-        await chatLogChannel.send({ embeds: [deleteEmbed] });
-        await chatLogChannel.send({ embeds: [editEmbed] });
+        await chatLogChannel.send({ embeds: [deleteEmbed, editEmbed] });
       }
 
       // Dummy Voice Log
@@ -341,7 +424,7 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 // ==========================================
-// 8. UNBAN BUTTON INTERACTION LISTENER
+// 9. UNBAN BUTTON INTERACTION LISTENER
 // ==========================================
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
@@ -362,22 +445,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const existingEmbed = interaction.message.embeds[0];
       const updatedEmbed = EmbedBuilder.from(existingEmbed)
-        .setColor('#57F287') // Green accent
-        .addFields({ 
-          name: 'Status', 
-          value: `:white_check_mark: **Unbanned by ${interaction.user.username}**` 
-        });
+        .setColor('#57F287')
+        .addFields({ name: 'Status', value: `:white_check_mark: **Unbanned by ${interaction.user.username}**` });
 
-      await interaction.update({
-        embeds: [updatedEmbed],
-        components: [updatedRow]
-      });
+      await interaction.update({ embeds: [updatedEmbed], components: [updatedRow] });
     } catch (error) {
       console.error(`Failed to unban user ID ${targetUserId}:`, error);
-      await interaction.reply({
-        content: `Failed to unban user. They may already be unbanned or the bot lacks permissions.`,
-        ephemeral: true
-      });
+      await interaction.reply({ content: `Failed to unban user. They may already be unbanned or the bot lacks permissions.`, ephemeral: true });
     }
   }
 });
@@ -418,10 +492,7 @@ async function executeBan(guild, user, reason) {
     const row = new ActionRowBuilder().addComponents(unbanButton);
 
     if (logChannel) {
-      await logChannel.send({
-        embeds: [banEmbed],
-        components: [row]
-      });
+      await logChannel.send({ embeds: [banEmbed], components: [row] });
     } else {
       console.log('Could not find the ban logs channel. Verify BAN_LOG_CHANNEL_ID.');
     }
