@@ -6,7 +6,8 @@ const {
   ActionRowBuilder, 
   ButtonBuilder, 
   ButtonStyle,
-  EmbedBuilder 
+  EmbedBuilder,
+  PermissionsBitField
 } = require('discord.js');
 
 const client = new Client({
@@ -209,12 +210,91 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 });
 
 // ==========================================
-// 7. MESSAGE LISTENERS: HONEYPOT & INVITE LINK AUTO-BAN
+// 7. MESSAGE LISTENERS: HONEYPOT, INVITE LINKS & TEST COMMAND
 // ==========================================
 client.on(Events.MessageCreate, async (message) => {
   if (message.guild?.id !== GUILD_ID || message.author.bot) return;
 
-  // Honeypot Trap Channel Auto-Ban
+  // --- MANUAL TEST COMMAND ---
+  if (message.content === '!testlogs') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return message.reply({ content: 'You do not have permission to run this command.', ephemeral: true });
+    }
+
+    try {
+      const createdUnix = Math.floor(message.author.createdTimestamp / 1000);
+
+      // Dummy Welcome
+      const welcomeChannel = message.guild.channels.cache.get(WELCOME_CHANNEL_ID);
+      const joinEmbed = new EmbedBuilder()
+        .setColor('#D4AF37')
+        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
+        .setDescription(`**Member Joined**\n<@${message.author.id}> joined the server.\n\n**Account Creation:** <t:${createdUnix}:R> (<t:${createdUnix}:D>)`)
+        .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
+      if (welcomeChannel) await welcomeChannel.send({ embeds: [joinEmbed] });
+
+      // Dummy Leave
+      const generalLogChannel = message.guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
+      const leaveEmbed = new EmbedBuilder()
+        .setColor('#ED4245')
+        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
+        .setDescription(`**Member Left**\n<@${message.author.id}> left or was removed from the server.`)
+        .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
+      if (generalLogChannel) await generalLogChannel.send({ embeds: [leaveEmbed] });
+
+      // Dummy Chat Logs (Delete & Edit)
+      const chatLogChannel = message.guild.channels.cache.get(CHAT_LOG_CHANNEL_ID);
+      const deleteEmbed = new EmbedBuilder()
+        .setColor('#ED4245')
+        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
+        .setDescription(`**Message deleted in <#${message.channel.id}>**\n\nThis is a simulated deleted message.\n\n**Message ID:** ${message.id}`)
+        .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
+      
+      const editEmbed = new EmbedBuilder()
+        .setColor('#00A8FC')
+        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
+        .setDescription(`**Message edited in <#${message.channel.id}>** [Jump to Message](${message.url})\n\n**Before:** Original test text\n**After:** Edited test text\n\n**Message ID:** ${message.id}`)
+        .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
+      
+      if (chatLogChannel) {
+        await chatLogChannel.send({ embeds: [deleteEmbed] });
+        await chatLogChannel.send({ embeds: [editEmbed] });
+      }
+
+      // Dummy Voice Log
+      const voiceLogChannel = message.guild.channels.cache.get(VOICE_LOG_CHANNEL_ID);
+      const voiceEmbed = new EmbedBuilder()
+        .setColor('#57F287')
+        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
+        .setDescription(`**Joined voice channel <#123456789012345678>** *(Simulated)*`)
+        .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
+      if (voiceLogChannel) await voiceLogChannel.send({ embeds: [voiceEmbed] });
+
+      // Dummy Ban Log
+      const banLogChannel = message.guild.channels.cache.get(BAN_LOG_CHANNEL_ID);
+      const banEmbed = new EmbedBuilder()
+        .setColor('#ED4245')
+        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
+        .setDescription(`**Member Banned**\n\n**Offender:** ${message.author.username} (<@${message.author.id}>)\n**Reason:** Simulated Ban Test\n**Responsible Moderator:** ${client.user.tag}`)
+        .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
+        
+      const testUnbanButton = new ButtonBuilder()
+        .setCustomId(`test_unban`)
+        .setLabel('UNBAN')
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(true); // Disabled for the test so it doesn't throw errors
+      const testRow = new ActionRowBuilder().addComponents(testUnbanButton);
+
+      if (banLogChannel) await banLogChannel.send({ embeds: [banEmbed], components: [testRow] });
+
+      return message.reply('✅ Test logs successfully dispatched to Welcome, General, Chat, Voice, and Ban channels.');
+    } catch (err) {
+      console.error('Failed to send test logs:', err);
+      return message.reply('Failed to dispatch test logs. Check console.');
+    }
+  }
+
+  // --- HONEYPOT TRAP CHANNEL AUTO-BAN ---
   if (message.channel.id === TRAP_CHANNEL_ID) {
     try {
       await message.delete();
@@ -225,7 +305,7 @@ client.on(Events.MessageCreate, async (message) => {
     return;
   }
 
-  // Anti-Discord Invite Link Auto-Ban
+  // --- ANTI-DISCORD INVITE LINK AUTO-BAN ---
   if (DISCORD_INVITE_REGEX.test(message.content)) {
     try {
       await message.delete();
