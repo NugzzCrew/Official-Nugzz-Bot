@@ -30,6 +30,7 @@ const CHAT_LOG_CHANNEL_ID = '1391913833882321079';
 const VOICE_LOG_CHANNEL_ID = '1554560861597868112';
 const BAN_LOG_CHANNEL_ID = '1391912641529774161';
 const GENERAL_LOG_CHANNEL_ID = '1274531597663735899';
+const WELCOME_CHANNEL_ID = '1289625226149236829';
 
 // Regex pattern matching all Discord invite formats
 const DISCORD_INVITE_REGEX = /(https?:\/\/)?(www\.)?(discord\.(gg|io|me|li)|discord(app)?\.com\/invite)\/[a-zA-Z0-9\-]+/i;
@@ -40,28 +41,37 @@ client.once(Events.ClientReady, () => {
 });
 
 // ==========================================
-// 1. GENERAL LOGS: MEMBER JOIN & LEAVE
+// 1. WELCOME CHANNEL: MEMBER JOIN
 // ==========================================
 client.on(Events.GuildMemberAdd, async (member) => {
   if (member.guild.id !== GUILD_ID) return;
 
-  const generalLogChannel = member.guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
-  if (!generalLogChannel) return;
+  const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
+  if (!welcomeChannel) return;
+
+  const createdUnix = Math.floor(member.user.createdTimestamp / 1000);
 
   const joinEmbed = new EmbedBuilder()
-    .setColor('#57F287') // Green accent
+    .setColor('#D4AF37') // Official Nugzz Gold accent
     .setAuthor({ 
       name: member.user.username, 
       iconURL: member.user.displayAvatarURL(),
       url: `https://discord.com/users/${member.id}`
     })
-    .setDescription(`**Member Joined**\n<@${member.id}> joined the server.`)
+    .setDescription(
+      `**Member Joined**\n` +
+      `<@${member.id}> joined the server.\n\n` +
+      `**Account Creation:** <t:${createdUnix}:R> (<t:${createdUnix}:D>)`
+    )
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
 
-  await generalLogChannel.send({ embeds: [joinEmbed] });
+  await welcomeChannel.send({ embeds: [joinEmbed] });
 });
 
+// ==========================================
+// 2. GENERAL LOGS: MEMBER LEAVE
+// ==========================================
 client.on(Events.GuildMemberRemove, async (member) => {
   if (member.guild.id !== GUILD_ID) return;
 
@@ -83,7 +93,7 @@ client.on(Events.GuildMemberRemove, async (member) => {
 });
 
 // ==========================================
-// 2. CHAT LOGS: MESSAGE DELETION
+// 3. CHAT LOGS: MESSAGE DELETION
 // ==========================================
 client.on(Events.MessageDelete, async (message) => {
   if (message.guild?.id !== GUILD_ID || message.author?.bot) return;
@@ -112,7 +122,7 @@ client.on(Events.MessageDelete, async (message) => {
 });
 
 // ==========================================
-// 3. CHAT LOGS: MESSAGE EDIT
+// 4. CHAT LOGS: MESSAGE EDIT
 // ==========================================
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
   if (newMessage.guild?.id !== GUILD_ID || newMessage.author?.bot) return;
@@ -144,7 +154,7 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
 });
 
 // ==========================================
-// 4. VOICE LOGS: JOIN / LEAVE / MOVE
+// 5. VOICE LOGS: JOIN / LEAVE / MOVE
 // ==========================================
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   if (newState.guild.id !== GUILD_ID || newState.member.user.bot) return;
@@ -186,7 +196,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 });
 
 // ==========================================
-// 5. ONBOARDING AUTO-BAN LISTENER
+// 6. ONBOARDING AUTO-BAN LISTENER
 // ==========================================
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (newMember.guild.id !== GUILD_ID) return;
@@ -199,7 +209,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 });
 
 // ==========================================
-// 6. MESSAGE LISTENERS: HONEYPOT & INVITE LINK AUTO-BAN
+// 7. MESSAGE LISTENERS: HONEYPOT & INVITE LINK AUTO-BAN
 // ==========================================
 client.on(Events.MessageCreate, async (message) => {
   if (message.guild?.id !== GUILD_ID || message.author.bot) return;
@@ -227,7 +237,7 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 // ==========================================
-// 7. UNBAN BUTTON INTERACTION LISTENER
+// 8. UNBAN BUTTON INTERACTION LISTENER
 // ==========================================
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
