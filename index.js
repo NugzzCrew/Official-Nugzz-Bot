@@ -9,6 +9,9 @@ const {
   EmbedBuilder,
   PermissionsBitField
 } = require('discord.js');
+const cron = require('node-cron');
+const fs = require('fs');
+const path = require('path');
 
 const client = new Client({
   intents: [
@@ -34,13 +37,109 @@ const BAN_LOG_CHANNEL_ID = '1391912641529774161';
 const GENERAL_LOG_CHANNEL_ID = '1274531597663735899';
 const WELCOME_CHANNEL_ID = '1289625226149236829';
 
+// Twitch Drops Channel
+const TWITCH_DROPS_CHANNEL_ID = '1565869714746380329';
+
 // Regex pattern matching all Discord invite formats
 const DISCORD_INVITE_REGEX = /(https?:\/\/)?(www\.)?(discord\.(gg|io|me|li)|discord(app)?\.com\/invite)\/[a-zA-Z0-9\-]+/i;
+
+const LAST_DROP_FILE = path.join(__dirname, 'lastTwitchDrop.json');
 
 client.once(Events.ClientReady, () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is online and ready.');
+
+  // Daily Twitch Drops check at 12:00 UTC (4 AM PST / 5 AM PDT)
+  cron.schedule('0 12 * * *', () => {
+    console.log('Running daily Twitch Drops check...');
+    checkTwitchDrops();
+  }, {
+    timezone: 'UTC'
+  });
+
+  // Optional: also run once on startup (comment out if you don't want this)
+  // setTimeout(() => checkTwitchDrops(), 10000);
 });
+
+// ==========================================
+// TWITCH DROPS CHECKER (free Sunkwi API)
+// ==========================================
+async function checkTwitchDrops(force = false) {
+  try {
+    const res = await fetch('https://twitch-drops-api.sunkwi.com/v2/drops');
+    if (!res.ok) throw new Error(`API returned ${res.status}`);
+    const json = await res.json();
+
+    const gtaCampaigns = (json.data || []).filter(c =>
+      /gta|grand theft auto/i.test(c.gameDisplayName || '')
+    );
+
+    if (gtaCampaigns.length === 0) {
+      console.log('No active GTA Twitch Drops found.');
+      return;
+    }
+
+    // Use the first / primary GTA campaign
+    const campaign = gtaCampaigns[0];
+    const uniqueKey = `${campaign.gameId}-${campaign.endAt}`;
+
+    // Load last posted
+    let last = null;
+    if (fs.existsSync(LAST_DROP_FILE)) {
+      try {
+        last = JSON.parse(fs.readFileSync(LAST_DROP_FILE, 'utf8'));
+      } catch {}
+    }
+
+    if (!force && last && last.uniqueKey === uniqueKey) {
+      console.log('Same GTA drop already posted. Skipping.');
+      return;
+    }
+
+    // Build embed
+    const rewardText = campaign.rewards?.[0]?.description || 
+                       campaign.rewards?.[0]?.name || 
+                       'See Rockstar page for details';
+
+    const endUnix = Math.floor(new Date(campaign.endAt).getTime() / 1000);
+
+    const embed = new EmbedBuilder()
+      .setColor('#FFD700') // Nugzz gold
+      .setTitle('🎁 New GTA Online Twitch Drop Active')
+      .setDescription(rewardText)
+      .addFields(
+        { name: 'Game', value: campaign.gameDisplayName || 'Grand Theft Auto V', inline: true },
+        { name: 'Ends', value: `<t:${endUnix}:F> (<t:${endUnix}:R>)`, inline: true },
+        { name: 'How to Claim', value: '[Rockstar Twitch Drops Page](https://www.rockstargames.com/gta-online/twitch-drops)\nWatch participating streams with **Drops Enabled**.' }
+      )
+      .setFooter({ text: 'Official Nugzz Crew • Fam Bam' })
+      .setTimestamp();
+
+    if (campaign.gameBoxArtURL) {
+      embed.setThumbnail(campaign.gameBoxArtURL);
+    }
+
+    const channel = client.channels.cache.get(TWITCH_DROPS_CHANNEL_ID);
+    if (!channel) {
+      console.error('Twitch Drops channel not found:', TWITCH_DROPS_CHANNEL_ID);
+      return;
+    }
+
+    await channel.send({ embeds: [embed] });
+    console.log('Posted new GTA Twitch Drop embed.');
+
+    // Save so we don't post again
+    fs.writeFileSync(LAST_DROP_FILE, JSON.stringify({
+      uniqueKey,
+      gameId: campaign.gameId,
+      endAt: campaign.endAt,
+      postedAt: new Date().toISOString()
+    }, null, 2));
+
+  } catch (err) {
+    console.error('Twitch Drops check failed:', err.message);
+  }
+}
 
 // ==========================================
 // 1. WELCOME CHANNEL: MEMBER JOIN
@@ -398,6 +497,16 @@ client.on(Events.MessageCreate, async (message) => {
       console.error('Failed to send test logs:', err);
       return message.reply('Failed to dispatch test logs. Check console.');
     }
+  }
+
+  // --- MANUAL TWITCH DROPS CHECK (admin) ---
+  if (message.content === '!checkdrops') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return message.reply({ content: 'You do not have permission to run this command.', ephemeral: true });
+    }
+    await message.reply('Checking for new GTA Twitch Drops...');
+    await checkTwitchDrops(true); // force = true ignores last posted
+    return;
   }
 
   // --- HONEYPOT TRAP CHANNEL AUTO-BAN ---
