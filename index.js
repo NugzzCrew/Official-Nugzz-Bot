@@ -9,7 +9,6 @@ const {
   EmbedBuilder,
   PermissionsBitField
 } = require('discord.js');
-const { startDropsMonitor } = require('./twitchDrops');
 
 const client = new Client({
   intents: [
@@ -41,8 +40,6 @@ const DISCORD_INVITE_REGEX = /(https?:\/\/)?(www\.)?(discord\.(gg|io|me|li)|disc
 client.once(Events.ClientReady, () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is online and ready.');
-  // Initialize Twitch Drops Monitor
-  startDropsMonitor(client);
 });
 
 // ==========================================
