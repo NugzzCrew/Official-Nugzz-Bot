@@ -609,11 +609,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const member = interaction.member;
 
     // Check if user already has an open ticket in the category
+    // Only match channels that were created for this specific user (via topic)
     const existing = interaction.guild.channels.cache.find(ch =>
       ch.parentId === DMO_CATEGORY_ID &&
       ch.type === ChannelType.GuildText &&
-      (ch.topic === `DMO Ticket for ${member.id}` ||
-       ch.permissionOverwrites.cache.some(ow => ow.id === member.id && ow.type === 1))
+      ch.topic === `DMO Ticket for ${member.id}`
     );
 
     if (existing) {
