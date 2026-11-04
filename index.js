@@ -417,7 +417,7 @@ client.on(Events.MessageCreate, async (message) => {
       .setTitle('DMO Generator')
       .setDescription('Create your DMO specs on the website, then open a ticket and paste them below.\n\n**[OfficialNugzzCrew.com](https://officialnugzzcrew.com/generator)**')
       .setImage('https://i.imgur.com/ffITXg8.png')
-      .setColor('#FFD700')
+      .setColor('#DAF437')
       .setFooter({ text: 'Official Nugzz Crew • Fam Bam' });
 
     const row = new ActionRowBuilder().addComponents(
