@@ -9,7 +9,10 @@ const {
   EmbedBuilder,
   PermissionsBitField,
   ChannelType,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle
 } = require('discord.js');
 const cron = require('node-cron');
 const fs = require('fs');
@@ -572,7 +575,8 @@ client.on(Events.MessageCreate, async (message) => {
 // 9. INTERACTION CREATE (unban + DMO tickets)
 // ==========================================
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isButton()) return;
+  // Handle buttons and modal submits
+  if (!interaction.isButton() && !interaction.isModalSubmit()) return;
 
   // ----- UNBAN BUTTON -----
   if (interaction.customId.startsWith('unban_')) {
@@ -602,14 +606,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  // ----- OPEN DMO TICKET -----
+  // ----- OPEN DMO TICKET (show modal) -----
   if (interaction.customId === 'open_dmo_ticket') {
-    await interaction.deferReply({ ephemeral: true });
-
     const member = interaction.member;
 
-    // Check if user already has an open ticket in the category
-    // Only match channels that were created for this specific user (via topic)
+    // Check if user already has an open ticket
     const existing = interaction.guild.channels.cache.find(ch =>
       ch.parentId === DMO_CATEGORY_ID &&
       ch.type === ChannelType.GuildText &&
@@ -617,12 +618,42 @@ client.on(Events.InteractionCreate, async (interaction) => {
     );
 
     if (existing) {
-      return interaction.editReply({ content: `You already have an open ticket: ${existing}` });
+      return interaction.reply({ content: `You already have an open ticket: ${existing}`, ephemeral: true });
     }
 
+    const modal = new ModalBuilder()
+      .setCustomId('dmo_ticket_modal')
+      .setTitle('Paste Your DMO Specs');
+
+    const specsInput = new TextInputBuilder()
+      .setCustomId('dmo_specs')
+      .setLabel('Paste your DMO specs here')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Paste the form from the website...')
+      .setRequired(true)
+      .setMinLength(10)
+      .setMaxLength(4000);
+
+    const row = new ActionRowBuilder().addComponents(specsInput);
+    modal.addComponents(row);
+
+    await interaction.showModal(modal);
+    return;
+  }
+
+  // ----- DMO TICKET MODAL SUBMIT -----
+  if (interaction.isModalSubmit() && interaction.customId === 'dmo_ticket_modal') {
+    const specs = interaction.fields.getTextInputValue('dmo_specs').trim();
+
+    if (!specs || specs.length < 10) {
+      return interaction.reply({ content: 'You must paste your DMO specs. Ticket not created.', ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const member = interaction.member;
     const nickname = member.displayName || member.user.username;
 
-    // Make a safe channel name from the nickname
     let channelName = nickname
       .toLowerCase()
       .replace(/[^a-z0-9\-_ ]/g, '')
@@ -653,7 +684,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       );
 
       await channel.send({
-        content: `<@${member.id}> <@&${OWNER_ROLE_ID}> <@&${DMO_PRO_ROLE_ID}>\n\nPaste your DMO specs from the website below.`,
+        content: `<@${member.id}> <@&${OWNER_ROLE_ID}> <@&${DMO_PRO_ROLE_ID}>\n\n**DMO Specs:**\n\`\`\`\n${specs}\n\`\`\``,
         components: [closeRow]
       });
 
