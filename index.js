@@ -52,6 +52,11 @@ const OWNER_ROLE_ID = '1278446192404992021';
 const DMO_PRO_ROLE_ID = '1274519327374053386';
 // ========================================
 
+// ========== BEFF TICKET SYSTEM ==========
+const BEFF_CATEGORY_ID = '1534707288466526308';
+const BEFF_PANEL_CHANNEL_ID = '1534721456720576655';
+// ========================================
+
 // Regex pattern matching all Discord invite formats
 const DISCORD_INVITE_REGEX = /(https?:\/\/)?(www\.)?(discord\.(gg|io|me|li)|discord(app)?\.com\/invite)\/[a-zA-Z0-9\-]+/i;
 
@@ -435,6 +440,31 @@ client.on(Events.MessageCreate, async (message) => {
     return;
   }
 
+  // --- BEFF PANEL COMMAND ---
+  if (message.content === '!beffpanel') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return message.reply({ content: 'You do not have permission to run this command.', ephemeral: true });
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('BEFF Outfit Builder')
+      .setDescription('Create your outfit on the website:\n\n**[Outfit Builder](https://amethxst.dev/gta-outfit-builder)**')
+      .setImage('https://i.imgur.com/SUYFLl3.png')
+      .setColor('#D4AF37')
+      .setFooter({ text: 'Official Nugzz Crew • Fam Bam' });
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('open_beff_ticket')
+        .setLabel('OPEN Ticket')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    await message.channel.send({ embeds: [embed], components: [row] });
+    await message.reply({ content: 'BEFF panel posted!', ephemeral: true });
+    return;
+  }
+
   // --- MANUAL TEST COMMAND ---
   if (message.content === '!testlogs') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -693,6 +723,130 @@ client.on(Events.InteractionCreate, async (interaction) => {
       console.error('Failed to create DMO ticket:', err);
       await interaction.editReply({ content: 'Failed to create ticket. Check bot permissions.' });
     }
+    return;
+  }
+
+  // ----- OPEN BEFF TICKET (show modal) -----
+  if (interaction.customId === 'open_beff_ticket') {
+    const member = interaction.member;
+
+    const existing = interaction.guild.channels.cache.find(ch =>
+      ch.parentId === BEFF_CATEGORY_ID &&
+      ch.type === ChannelType.GuildText &&
+      ch.topic === `BEFF Ticket for ${member.id}`
+    );
+
+    if (existing) {
+      return interaction.reply({ content: `You already have an open BEFF ticket: ${existing}`, ephemeral: true });
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId('beff_ticket_modal')
+      .setTitle('BEFF Ticket');
+
+    const platformInput = new TextInputBuilder()
+      .setCustomId('beff_platform')
+      .setLabel('Platform (PS4 or PS5)')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('PS4 or PS5')
+      .setRequired(true)
+      .setMaxLength(10);
+
+    const paymentInput = new TextInputBuilder()
+      .setCustomId('beff_payment')
+      .setLabel('Payment Method')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('CashApp, PayPal, Venmo, Zelle, or Chime')
+      .setRequired(true)
+      .setMaxLength(50);
+
+    const specsInput = new TextInputBuilder()
+      .setCustomId('beff_specs')
+      .setLabel('Outfit Specs / Notes')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Paste or describe your outfit...')
+      .setRequired(true)
+      .setMinLength(5)
+      .setMaxLength(4000);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(platformInput),
+      new ActionRowBuilder().addComponents(paymentInput),
+      new ActionRowBuilder().addComponents(specsInput)
+    );
+
+    await interaction.showModal(modal);
+    return;
+  }
+
+  // ----- BEFF TICKET MODAL SUBMIT -----
+  if (interaction.isModalSubmit() && interaction.customId === 'beff_ticket_modal') {
+    const platform = interaction.fields.getTextInputValue('beff_platform').trim();
+    const payment = interaction.fields.getTextInputValue('beff_payment').trim();
+    const specs = interaction.fields.getTextInputValue('beff_specs').trim();
+
+    if (!platform || !payment || !specs) {
+      return interaction.reply({ content: 'All fields are required. Ticket not created.', ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const member = interaction.member;
+    const nickname = member.displayName || member.user.username;
+
+    let channelName = nickname
+      .toLowerCase()
+      .replace(/[^a-z0-9\-_ ]/g, '')
+      .replace(/\s+/g, '-')
+      .slice(0, 90);
+
+    if (!channelName) channelName = `ticket-${member.user.id}`;
+
+    try {
+      const channel = await interaction.guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildText,
+        parent: BEFF_CATEGORY_ID,
+        topic: `BEFF Ticket for ${member.id}`,
+        permissionOverwrites: [
+          { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+          { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+          { id: OWNER_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+          { id: DMO_PRO_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+        ]
+      });
+
+      const closeRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('close_beff_ticket')
+          .setLabel('Close / Delete Ticket')
+          .setStyle(ButtonStyle.Danger)
+      );
+
+      await channel.send({
+        content: `<@${member.id}> <@&${OWNER_ROLE_ID}> <@&${DMO_PRO_ROLE_ID}>\n\n**Platform:** ${platform}\n**Payment:** ${payment}\n\n**Outfit Specs:**\n\`\`\`\n${specs}\n\`\`\``,
+        components: [closeRow]
+      });
+
+      await interaction.editReply({ content: `Ticket created: ${channel}` });
+    } catch (err) {
+      console.error('Failed to create BEFF ticket:', err);
+      await interaction.editReply({ content: 'Failed to create ticket. Check bot permissions.' });
+    }
+    return;
+  }
+
+  // ----- CLOSE / DELETE BEFF TICKET -----
+  if (interaction.customId === 'close_beff_ticket') {
+    const hasStaffRole = interaction.member.roles.cache.has(OWNER_ROLE_ID) || 
+                         interaction.member.roles.cache.has(DMO_PRO_ROLE_ID);
+
+    if (!hasStaffRole) {
+      return interaction.reply({ content: 'Only Owner or DMO Pro can close tickets.', ephemeral: true });
+    }
+
+    await interaction.reply({ content: 'Deleting ticket...', ephemeral: true });
+    await interaction.channel.delete().catch(err => console.error('Failed to delete ticket channel:', err));
     return;
   }
 
