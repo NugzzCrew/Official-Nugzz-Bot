@@ -415,8 +415,7 @@ client.on(Events.MessageCreate, async (message) => {
 
     const embed = new EmbedBuilder()
       .setTitle('DMO Generator')
-      .setDescription('Create your DMO specs on the website, then open a ticket and paste them below.')
-      .setURL('https://officialnugzzcrew.com/generator')
+      .setDescription('Create your DMO specs on the website, then open a ticket and paste them below.\n\n**[OfficialNugzzCrew.com](https://officialnugzzcrew.com/generator)**')
       .setImage('https://i.imgur.com/ffITXg8.png')
       .setColor('#FFD700')
       .setFooter({ text: 'Official Nugzz Crew • Fam Bam' });
@@ -425,7 +424,7 @@ client.on(Events.MessageCreate, async (message) => {
       new ButtonBuilder()
         .setCustomId('open_dmo_ticket')
         .setLabel('OPEN Ticket')
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Success)
     );
 
     await message.channel.send({ embeds: [embed], components: [row] });
