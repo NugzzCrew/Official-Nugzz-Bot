@@ -611,8 +611,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // Check if user already has an open ticket in the category
     const existing = interaction.guild.channels.cache.find(ch =>
       ch.parentId === DMO_CATEGORY_ID &&
-      ch.permissionOverwrites.cache.has(member.id) &&
-      ch.type === ChannelType.GuildText
+      ch.type === ChannelType.GuildText &&
+      (ch.topic === `DMO Ticket for ${member.id}` ||
+       ch.permissionOverwrites.cache.some(ow => ow.id === member.id && ow.type === 1))
     );
 
     if (existing) {
@@ -635,6 +636,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         name: channelName,
         type: ChannelType.GuildText,
         parent: DMO_CATEGORY_ID,
+        topic: `DMO Ticket for ${member.id}`,
         permissionOverwrites: [
           { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
           { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
