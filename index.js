@@ -55,6 +55,7 @@ const DMO_PRO_ROLE_ID = '1274519327374053386';
 // ========== BEFF TICKET SYSTEM ==========
 const BEFF_CATEGORY_ID = '1534707288466526308';
 const BEFF_PANEL_CHANNEL_ID = '1534721456720576655';
+const BEFF_PRO_ROLE_ID = '1429155615913017446';
 // ========================================
 
 // Regex pattern matching all Discord invite formats
@@ -812,7 +813,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
           { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
           { id: OWNER_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-          { id: DMO_PRO_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+          { id: BEFF_PRO_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
         ]
       });
 
@@ -824,7 +825,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       );
 
       await channel.send({
-        content: `<@${member.id}> <@&${OWNER_ROLE_ID}> <@&${DMO_PRO_ROLE_ID}>\n\n**Platform:** ${platform}\n**Payment:** ${payment}\n\n**Outfit Specs:**\n\`\`\`\n${specs}\n\`\`\``,
+        content: `<@${member.id}> <@&${OWNER_ROLE_ID}> <@&${BEFF_PRO_ROLE_ID}>\n\n**Platform:** ${platform}\n**Payment:** ${payment}\n\n**Outfit Specs:**\n\`\`\`\n${specs}\n\`\`\``,
         components: [closeRow]
       });
 
@@ -839,10 +840,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
   // ----- CLOSE / DELETE BEFF TICKET -----
   if (interaction.customId === 'close_beff_ticket') {
     const hasStaffRole = interaction.member.roles.cache.has(OWNER_ROLE_ID) || 
-                         interaction.member.roles.cache.has(DMO_PRO_ROLE_ID);
+                         interaction.member.roles.cache.has(BEFF_PRO_ROLE_ID);
 
     if (!hasStaffRole) {
-      return interaction.reply({ content: 'Only Owner or DMO Pro can close tickets.', ephemeral: true });
+      return interaction.reply({ content: 'Only Owner or BEFF Pro can close tickets.', ephemeral: true });
     }
 
     await interaction.reply({ content: 'Deleting ticket...', ephemeral: true });
