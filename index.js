@@ -7,7 +7,9 @@ const {
   ButtonBuilder, 
   ButtonStyle,
   EmbedBuilder,
-  PermissionsBitField
+  PermissionsBitField,
+  ChannelType,
+  PermissionFlagsBits
 } = require('discord.js');
 const cron = require('node-cron');
 const fs = require('fs');
@@ -39,6 +41,13 @@ const WELCOME_CHANNEL_ID = '1289625226149236829';
 
 // Twitch Drops Channel
 const TWITCH_DROPS_CHANNEL_ID = '1565869714746380329';
+
+// ========== DMO TICKET SYSTEM ==========
+const DMO_CATEGORY_ID = '1289277729098698793';
+const DMO_PANEL_CHANNEL_ID = '1277822812534607882';
+const OWNER_ROLE_ID = '1278446192404992021';
+const DMO_PRO_ROLE_ID = '1274519327374053386';
+// ========================================
 
 // Regex pattern matching all Discord invite formats
 const DISCORD_INVITE_REGEX = /(https?:\/\/)?(www\.)?(discord\.(gg|io|me|li)|discord(app)?\.com\/invite)\/[a-zA-Z0-9\-]+/i;
@@ -157,7 +166,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
   let description = `**Member joined**\n**${member.user.username}** ${member.guild.memberCount}th to join\n`;
   
   if (isNewAccount) {
-    description += `⚠️ **NEW ACCOUNT** created <t:${createdUnix}:R> ⚠️`;
+    description += `NEW ACCOUNT created <t:${createdUnix}:R>`;
   } else {
     description += `created <t:${createdUnix}:R>`;
   }
@@ -209,28 +218,28 @@ client.on(Events.GuildMemberRemove, async (member) => {
 });
 
 // ==========================================
-// 3. GENERAL LOGS: NICKNAME UPDATES & AUTO-BANS
+// 3. GENERAL LOGS: NICKNAME CHANGES + ROLE AUTO-BANS
 // ==========================================
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (newMember.guild.id !== GUILD_ID) return;
 
-  // --- Auto-Ban Checks ---
+  // Auto-ban if they get the Dumbass or Underage role
   if (!oldMember.roles.cache.has(DUMBASS_ROLE_ID) && newMember.roles.cache.has(DUMBASS_ROLE_ID)) {
     await executeBan(newMember.guild, newMember.user, 'Not following socials');
-  } else if (!oldMember.roles.cache.has(UNDERAGE_ROLE_ID) && newMember.roles.cache.has(UNDERAGE_ROLE_ID)) {
+    return;
+  }
+  if (!oldMember.roles.cache.has(UNDERAGE_ROLE_ID) && newMember.roles.cache.has(UNDERAGE_ROLE_ID)) {
     await executeBan(newMember.guild, newMember.user, 'Underage (16 and under)');
+    return;
   }
 
-  // --- Nickname Change Logs ---
+  // Nickname change logging
   if (oldMember.nickname !== newMember.nickname) {
     const generalLogChannel = newMember.guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
     if (!generalLogChannel) return;
 
-    const oldNick = oldMember.nickname ? oldMember.nickname : oldMember.user.username;
-    const newNick = newMember.nickname ? newMember.nickname : newMember.user.username;
-
     const nickEmbed = new EmbedBuilder()
-      .setColor('#00A8FC') 
+      .setColor('#00A8FC')
       .setAuthor({ 
         name: newMember.user.username, 
         iconURL: newMember.user.displayAvatarURL(),
@@ -238,8 +247,8 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
       })
       .setDescription(
         `**Nickname changed**\n**${newMember.user.username}**\n\n` +
-        `**Before:** ${oldNick}\n` +
-        `**After:** ${newNick}`
+        `**Before:** ${oldMember.nickname || '(none)'}\n` +
+        `**After:** ${newMember.nickname || '(none)'}`
       )
       .setFooter({ text: `ID: ${newMember.id}` })
       .setTimestamp();
@@ -249,20 +258,18 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 });
 
 // ==========================================
-// 4. GENERAL LOGS: USERNAME & AVATAR UPDATES
+// 4. GENERAL LOGS: USERNAME / AVATAR CHANGES
 // ==========================================
 client.on(Events.UserUpdate, async (oldUser, newUser) => {
   const guild = client.guilds.cache.get(GUILD_ID);
   if (!guild) return;
-  const member = guild.members.cache.get(newUser.id);
-  if (!member) return;
 
   const generalLogChannel = guild.channels.cache.get(GENERAL_LOG_CHANNEL_ID);
   if (!generalLogChannel) return;
 
-  // Username Change
+  // Username change
   if (oldUser.username !== newUser.username) {
-    const userEmbed = new EmbedBuilder()
+    const usernameEmbed = new EmbedBuilder()
       .setColor('#00A8FC')
       .setAuthor({ 
         name: newUser.username, 
@@ -270,17 +277,17 @@ client.on(Events.UserUpdate, async (oldUser, newUser) => {
         url: `https://discord.com/users/${newUser.id}`
       })
       .setDescription(
-        `**Username changed**\n**${newUser.username}**\n\n` +
+        `**Username changed**\n\n` +
         `**Before:** ${oldUser.username}\n` +
         `**After:** ${newUser.username}`
       )
       .setFooter({ text: `ID: ${newUser.id}` })
       .setTimestamp();
 
-    await generalLogChannel.send({ embeds: [userEmbed] });
+    await generalLogChannel.send({ embeds: [usernameEmbed] });
   }
 
-  // Avatar Change
+  // Avatar change
   if (oldUser.avatar !== newUser.avatar) {
     const avatarEmbed = new EmbedBuilder()
       .setColor('#00A8FC')
@@ -299,15 +306,14 @@ client.on(Events.UserUpdate, async (oldUser, newUser) => {
 });
 
 // ==========================================
-// 5. CHAT LOGS: MESSAGE DELETION
+// 5. CHAT LOGS: MESSAGE DELETE
 // ==========================================
 client.on(Events.MessageDelete, async (message) => {
-  if (message.guild?.id !== GUILD_ID || message.author?.bot) return;
+  if (!message.guild || message.guild.id !== GUILD_ID) return;
+  if (message.author?.bot) return;
 
   const chatLogChannel = message.guild.channels.cache.get(CHAT_LOG_CHANNEL_ID);
   if (!chatLogChannel) return;
-
-  const content = message.content ? message.content : '*[No text content or uncached message]*';
 
   const deleteEmbed = new EmbedBuilder()
     .setColor('#ED4245')
@@ -318,7 +324,7 @@ client.on(Events.MessageDelete, async (message) => {
     })
     .setDescription(
       `**Message deleted in <#${message.channel.id}>**\n\n` +
-      `${content}\n\n` +
+      `${message.content || '*No text content*'}\n\n` +
       `**Message ID:** ${message.id}`
     )
     .setFooter({ text: `ID: ${message.author?.id || 'Unknown'}` })
@@ -331,71 +337,101 @@ client.on(Events.MessageDelete, async (message) => {
 // 6. CHAT LOGS: MESSAGE EDIT
 // ==========================================
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
-  if (newMessage.guild?.id !== GUILD_ID || newMessage.author?.bot) return;
+  if (!newMessage.guild || newMessage.guild.id !== GUILD_ID) return;
+  if (newMessage.author?.bot) return;
   if (oldMessage.content === newMessage.content) return;
 
   const chatLogChannel = newMessage.guild.channels.cache.get(CHAT_LOG_CHANNEL_ID);
   if (!chatLogChannel) return;
 
-  const oldContent = oldMessage.content ? oldMessage.content : '*[Uncached original message]*';
-  const newContent = newMessage.content ? newMessage.content : '*[No text content]*';
-
   const editEmbed = new EmbedBuilder()
     .setColor('#00A8FC')
     .setAuthor({ 
-      name: newMessage.author.username, 
-      iconURL: newMessage.author.displayAvatarURL(),
-      url: `https://discord.com/users/${newMessage.author.id}`
+      name: newMessage.author?.username || 'Unknown', 
+      iconURL: newMessage.author?.displayAvatarURL(),
+      url: newMessage.author ? `https://discord.com/users/${newMessage.author.id}` : undefined
     })
     .setDescription(
       `**Message edited in <#${newMessage.channel.id}>** [Jump to Message](${newMessage.url})\n\n` +
-      `**Before:** ${oldContent}\n` +
-      `**After:** ${newContent}\n\n` +
+      `**Before:** ${oldMessage.content || '*No text content*'}\n` +
+      `**After:** ${newMessage.content || '*No text content*'}\n\n` +
       `**Message ID:** ${newMessage.id}`
     )
-    .setFooter({ text: `ID: ${newMessage.author.id}` })
+    .setFooter({ text: `ID: ${newMessage.author?.id || 'Unknown'}` })
     .setTimestamp();
 
   await chatLogChannel.send({ embeds: [editEmbed] });
 });
 
 // ==========================================
-// 7. VOICE LOGS: JOIN / LEAVE / MOVE
+// 7. VOICE LOGS
 // ==========================================
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-  if (newState.guild.id !== GUILD_ID || newState.member.user.bot) return;
+  if (newState.guild.id !== GUILD_ID) return;
 
   const voiceLogChannel = newState.guild.channels.cache.get(VOICE_LOG_CHANNEL_ID);
   if (!voiceLogChannel) return;
 
-  const member = newState.member;
-  const embed = new EmbedBuilder()
+  const member = newState.member || oldState.member;
+  if (!member || member.user.bot) return;
+
+  let description = '';
+  if (!oldState.channel && newState.channel) {
+    description = `**Joined voice channel** <#${newState.channel.id}>`;
+  } else if (oldState.channel && !newState.channel) {
+    description = `**Left voice channel** <#${oldState.channel.id}>`;
+  } else if (oldState.channel && newState.channel && oldState.channel.id !== newState.channel.id) {
+    description = `**Moved voice channels**\n**From:** <#${oldState.channel.id}>\n**To:** <#${newState.channel.id}>`;
+  } else {
+    return;
+  }
+
+  const voiceEmbed = new EmbedBuilder()
+    .setColor('#57F287')
     .setAuthor({ 
       name: member.user.username, 
       iconURL: member.user.displayAvatarURL(),
       url: `https://discord.com/users/${member.id}`
     })
+    .setDescription(description)
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
 
-  if (!oldState.channelId && newState.channelId) {
-    embed.setColor('#57F287').setDescription(`**Joined voice channel <#${newState.channelId}>**`);
-  } else if (oldState.channelId && !newState.channelId) {
-    embed.setColor('#ED4245').setDescription(`**Left voice channel <#${oldState.channelId}>**`);
-  } else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-    embed.setColor('#00A8FC').setDescription(`**Moved voice channels**\n**From:** <#${oldState.channelId}>\n**To:** <#${newState.channelId}>`);
-  } else {
-    return;
-  }
-
-  await voiceLogChannel.send({ embeds: [embed] });
+  await voiceLogChannel.send({ embeds: [voiceEmbed] });
 });
 
 // ==========================================
-// 8. MESSAGE LISTENERS: HONEYPOT, INVITE LINKS & TEST COMMAND
+// 8. MESSAGE CREATE (commands + honeypot + invite ban + DMO panel)
 // ==========================================
 client.on(Events.MessageCreate, async (message) => {
-  if (message.guild?.id !== GUILD_ID || message.author.bot) return;
+  if (!message.guild || message.guild.id !== GUILD_ID) return;
+  if (message.author.bot) return;
+
+  // --- DMO PANEL COMMAND ---
+  if (message.content === '!dmopanel') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return message.reply({ content: 'You do not have permission to run this command.', ephemeral: true });
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('DMO Generator')
+      .setDescription('Create your DMO specs on the website, then open a ticket and paste them below.')
+      .setURL('https://officialnugzzcrew.com/generator')
+      .setImage('https://i.imgur.com/ffITXg8.png')
+      .setColor('#FFD700')
+      .setFooter({ text: 'Official Nugzz Crew • Fam Bam' });
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('open_dmo_ticket')
+        .setLabel('OPEN Ticket')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await message.channel.send({ embeds: [embed], components: [row] });
+    await message.reply({ content: 'DMO panel posted!', ephemeral: true });
+    return;
+  }
 
   // --- MANUAL TEST COMMAND ---
   if (message.content === '!testlogs') {
@@ -477,26 +513,28 @@ client.on(Events.MessageCreate, async (message) => {
 
       // Dummy Ban Log
       const banLogChannel = message.guild.channels.cache.get(BAN_LOG_CHANNEL_ID);
-      const banEmbed = new EmbedBuilder()
-        .setColor('#ED4245')
-        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
-        .setDescription(`**Member Banned**\n\n**Offender:** ${message.author.username} (\`${message.author.id}\`)\n**Reason:** Simulated Ban Test\n**Responsible Moderator:** ${client.user.tag}`)
-        .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
-        
-      const testUnbanButton = new ButtonBuilder()
-        .setCustomId(`test_unban`)
-        .setLabel('UNBAN')
-        .setStyle(ButtonStyle.Success)
-        .setDisabled(true); 
-      const testRow = new ActionRowBuilder().addComponents(testUnbanButton);
+      if (banLogChannel) {
+        const banEmbed = new EmbedBuilder()
+          .setColor('#ED4245')
+          .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL(), url: `https://discord.com/users/${message.author.id}` })
+          .setDescription(`**Member Banned**\n\n**Offender:** ${message.author.username} (\`${message.author.id}\`)\n**Reason:** Test ban\n**Responsible Moderator:** ${client.user.tag}`)
+          .setFooter({ text: `ID: ${message.author.id}` }).setTimestamp();
 
-      if (banLogChannel) await banLogChannel.send({ embeds: [banEmbed], components: [testRow] });
+        const unbanButton = new ButtonBuilder()
+          .setCustomId(`unban_${message.author.id}`)
+          .setLabel('UNBAN')
+          .setStyle(ButtonStyle.Success);
 
-      return message.reply('✅ Test logs successfully dispatched to Welcome, General, Chat, Voice, and Ban channels.');
+        const row = new ActionRowBuilder().addComponents(unbanButton);
+        await banLogChannel.send({ embeds: [banEmbed], components: [row] });
+      }
+
+      await message.reply({ content: 'Test logs sent!', ephemeral: true });
     } catch (err) {
-      console.error('Failed to send test logs:', err);
-      return message.reply('Failed to dispatch test logs. Check console.');
+      console.error(err);
+      await message.reply({ content: 'Error sending test logs.', ephemeral: true });
     }
+    return;
   }
 
   // --- MANUAL TWITCH DROPS CHECK (admin) ---
@@ -505,7 +543,7 @@ client.on(Events.MessageCreate, async (message) => {
       return message.reply({ content: 'You do not have permission to run this command.', ephemeral: true });
     }
     await message.reply('Checking for new GTA Twitch Drops...');
-    await checkTwitchDrops(true); // force = true ignores last posted
+    await checkTwitchDrops(true);
     return;
   }
 
@@ -532,11 +570,12 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 // ==========================================
-// 9. UNBAN BUTTON INTERACTION LISTENER
+// 9. INTERACTION CREATE (unban + DMO tickets)
 // ==========================================
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
+  // ----- UNBAN BUTTON -----
   if (interaction.customId.startsWith('unban_')) {
     const targetUserId = interaction.customId.split('unban_')[1];
 
@@ -561,6 +600,70 @@ client.on(Events.InteractionCreate, async (interaction) => {
       console.error(`Failed to unban user ID ${targetUserId}:`, error);
       await interaction.reply({ content: `Failed to unban user. They may already be unbanned or the bot lacks permissions.`, ephemeral: true });
     }
+    return;
+  }
+
+  // ----- OPEN DMO TICKET -----
+  if (interaction.customId === 'open_dmo_ticket') {
+    await interaction.deferReply({ ephemeral: true });
+
+    const member = interaction.member;
+    const nickname = member.displayName || member.user.username;
+
+    // Make a safe channel name from the nickname
+    let channelName = nickname
+      .toLowerCase()
+      .replace(/[^a-z0-9\-_ ]/g, '')
+      .replace(/\s+/g, '-')
+      .slice(0, 90);
+
+    if (!channelName) channelName = `ticket-${member.user.id}`;
+
+    try {
+      const channel = await interaction.guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildText,
+        parent: DMO_CATEGORY_ID,
+        permissionOverwrites: [
+          { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+          { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+          { id: OWNER_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+          { id: DMO_PRO_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+        ]
+      });
+
+      const closeRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('close_dmo_ticket')
+          .setLabel('Close / Delete Ticket')
+          .setStyle(ButtonStyle.Danger)
+      );
+
+      await channel.send({
+        content: `<@${member.id}> <@&${OWNER_ROLE_ID}> <@&${DMO_PRO_ROLE_ID}>\n\nPaste your DMO specs from the website below.`,
+        components: [closeRow]
+      });
+
+      await interaction.editReply({ content: `Ticket created: ${channel}` });
+    } catch (err) {
+      console.error('Failed to create DMO ticket:', err);
+      await interaction.editReply({ content: 'Failed to create ticket. Check bot permissions.' });
+    }
+    return;
+  }
+
+  // ----- CLOSE / DELETE DMO TICKET -----
+  if (interaction.customId === 'close_dmo_ticket') {
+    const hasStaffRole = interaction.member.roles.cache.has(OWNER_ROLE_ID) || 
+                         interaction.member.roles.cache.has(DMO_PRO_ROLE_ID);
+
+    if (!hasStaffRole) {
+      return interaction.reply({ content: 'Only Owner or DMO Pro can close tickets.', ephemeral: true });
+    }
+
+    await interaction.reply({ content: 'Deleting ticket...', ephemeral: true });
+    await interaction.channel.delete().catch(err => console.error('Failed to delete ticket channel:', err));
+    return;
   }
 });
 
