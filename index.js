@@ -415,9 +415,9 @@ client.on(Events.MessageCreate, async (message) => {
 
     const embed = new EmbedBuilder()
       .setTitle('DMO Generator')
-      .setDescription('Create your DMO specs on the website, then open a ticket and paste them below.\n\n**[OfficialNugzzCrew.com](https://officialnugzzcrew.com/generator)**')
+      .setDescription('Create your DMO specs on the website:\n\n**[OfficialNugzzCrew.com](https://officialnugzzcrew.com/generator)**')
       .setImage('https://i.imgur.com/ffITXg8.png')
-      .setColor('#DAF437')
+      .setColor('#D4AF37')
       .setFooter({ text: 'Official Nugzz Crew • Fam Bam' });
 
     const row = new ActionRowBuilder().addComponents(
@@ -607,6 +607,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.deferReply({ ephemeral: true });
 
     const member = interaction.member;
+
+    // Check if user already has an open ticket in the category
+    const existing = interaction.guild.channels.cache.find(ch =>
+      ch.parentId === DMO_CATEGORY_ID &&
+      ch.permissionOverwrites.cache.has(member.id) &&
+      ch.type === ChannelType.GuildText
+    );
+
+    if (existing) {
+      return interaction.editReply({ content: `You already have an open ticket: ${existing}` });
+    }
+
     const nickname = member.displayName || member.user.username;
 
     // Make a safe channel name from the nickname
